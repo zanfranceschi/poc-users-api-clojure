@@ -36,3 +36,5 @@ repl-port
 out/
 build/
 
+/.clj-kondo
+/.lsp

@@ -1,6 +1,13 @@
 # poc-users-api
 
-FIXME
+To get an access token ([OAuth0](https://manage.auth0.com/)):
+
+```
+curl -v -XPOST \
+   -H "Content-Type: application/json" \
+   -d '{"client_id":"00", "client_secret":"00","grant_type":"client_credentials","audience":"00"}' \
+      https://[YOUR-SUBDOMAIN-HERE].auth0.com/oauth/token
+```
 
 ## Getting Started
 

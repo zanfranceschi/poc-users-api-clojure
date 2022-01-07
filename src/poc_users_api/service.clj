@@ -1,38 +1,169 @@
 (ns poc-users-api.service
-  (:require [io.pedestal.http :as http]
+  (:require [clojure.pprint :refer [pprint]]
+            [io.pedestal.http :as http]
             [io.pedestal.http.route :as route]
             [io.pedestal.http.body-params :as body-params]
-            [ring.util.response :as ring-resp]))
+            [poc-users-api.oauth :as oauth]
+            [poc-users-api.pipeline :as pipeline]))
 
-(defn about-page
+
+
+(defn- user->user-http [user]
+  ;; if you decide go HATEOAS, uncomment below :)
+  ;(assoc user :_links {:self (str "/users/" (:username user))})
+  user
+  )
+
+(defn users-put
   [request]
-  (ring-resp/response (format "Clojure %s - served from %s"
-                              (clojure-version)
-                              (route/url-for ::about-page))))
+  (let [payload   (:json-params request)
+        username (get-in request [:path-params :id])
+        conn      (get-in request [:database :conn])
+        db        (get-in request [:database :db])
+        op-result (pipeline/users-update conn db username payload)]
 
-(defn home-page
+    (if (:ok op-result)
+
+      {:status 204}
+
+      (let [exception? (:exception op-result)
+            message    (:message op-result)
+            details    (:details op-result)]
+        (if exception?
+
+          {:status 500
+           :body   {:error   message
+                    :details details}}
+
+          (if (:user-exists op-result)
+            
+            {:status 422
+             :body   {:error   message
+                      :details details}}
+            
+            {:status 404
+             :body   {:error   message
+                      :details details}}
+            )
+          )))))
+
+(defn users-delete
   [request]
-  (ring-resp/response "Hello World!"))
+  (let [username  (get-in request [:path-params :id])
+        conn      (get-in request [:database :conn])
+        db        (get-in request [:database :db])
+        op-result (pipeline/users-delete conn db username)]
 
-;; Defines "/" and "/about" routes with their associated :get handlers.
-;; The interceptors defined after the verb map (e.g., {:get home-page}
-;; apply to / and its children (/about).
-(def common-interceptors [(body-params/body-params) http/html-body])
+    (if (:ok op-result)
 
-;; Tabular routes
-(def routes #{["/" :get (conj common-interceptors `home-page)]
-              ["/about" :get (conj common-interceptors `about-page)]})
+      {:status 204}
 
-;; Map-based routes
-;(def routes `{"/" {:interceptors [(body-params/body-params) http/html-body]
-;                   :get home-page
-;                   "/about" {:get about-page}}})
+      (let [exception? (:exception op-result)
+            message    (:message op-result)
+            details    (:details op-result)]
+        (if exception?
 
-;; Terse/Vector-based routes
-;(def routes
-;  `[[["/" {:get home-page}
-;      ^:interceptors [(body-params/body-params) http/html-body]
-;      ["/about" {:get about-page}]]]])
+          {:status 500
+           :body   {:error   message
+                    :details details}}
+
+          (if (:user-exists op-result)
+
+            {:status 422
+             :body   {:error   message
+                      :details details}}
+
+            {:status 404
+             :body   {:error   message
+                      :details details}}))))))
+
+(defn users-post
+  [request]
+  (let [payload   (:json-params request)
+        username  (:username payload)
+        conn      (get-in request [:database :conn])
+        db        (get-in request [:database :db])
+        op-result (pipeline/users-create conn db payload)]
+    
+    (if (:ok op-result)
+
+      {:status  201
+       :body    {:message (:message op-result)}
+       :headers {"Location" (route/url-for :users-get-one :params {:id username})}}
+
+      (let [exception? (:exception op-result)
+            message    (:message op-result)
+            details    (:details op-result)]
+        (if exception?
+
+          {:status 500
+           :body   {:error   message
+                    :details details}}
+
+          {:status 422
+           :body   {:error   message
+                    :details details}})))))
+
+(defn users-get-one
+  [request]
+  (let [database (get-in request [:database :db])
+        username (get-in request [:path-params :id])
+        user (pipeline/users-get-one database username)]
+    (pprint user)
+    (if user
+      {:status 200
+       :body   (user->user-http user)}
+      {:status 404
+       :body   {:error (str "No user with username '" username "' found")}})))
+
+
+(defn users-get-list
+  [request]
+  (let [database (get-in request [:database :db])
+        q (get-in request [:query-params :q])
+        users (pipeline/users-get-list database q)
+        users-http (map user->user-http users)
+        users-count (count users)]
+    {:status 200
+     :body   {:total  users-count
+              :result users-http}}))
+
+
+(def common-interceptors-public [
+                                 pipeline/database-interceptor
+                                 (body-params/body-params)
+                                 http/json-body])
+
+
+;; based on https://auth0.com/blog/secure-a-clojure-web-api-with-auth0/
+(def jwk-endpoint "https://dev-u5rmkur2.us.auth0.com/.well-known/jwks.json")
+
+(def common-interceptors-protected (conj common-interceptors-public (oauth/decode-jwt {:required?    true
+                                                                                       :jwk-endpoint jwk-endpoint})))
+
+(defn home-interceptor [request]
+  {:status 200
+   :body   {:intc "home"
+            :url (route/url-for
+                  :users-get-one :params {:id "1"})}})
+  
+
+(defn debug-interceptor [request]
+  {:status 200
+   :body   {:intc "debug"
+            :url (route/url-for
+                  :users-get-one :params {:id "1"})}})
+
+(def routes #{
+              ["/debug" :get debug-interceptor :route-name :debug]
+              ["/" :get home-interceptor :route-name :home]
+              ["/users" :post (conj common-interceptors-protected `users-post) :route-name :users-post]
+              ["/users" :get (conj common-interceptors-public `users-get-list) :route-name :users-get-list]
+              ["/users/:id" :get (conj common-interceptors-public `users-get-one) :route-name :users-get-one]
+              ["/users/:id" :put (conj common-interceptors-protected `users-put) :route-name :users-put]
+              ["/users/:id" :delete (conj common-interceptors-protected `users-delete) :route-name :users-delete]
+              })
+              
 
 
 ;; Consumed by poc-users-api.server/create-server
@@ -68,15 +199,15 @@
               ;;  This can also be your own chain provider/server-fn -- http://pedestal.io/reference/architecture-overview#_chain_provider
               ::http/type :jetty
               ;;::http/host "localhost"
-              ::http/port 8080
+              ::http/port 9999
               ;; Options to pass to the container (Jetty)
               ::http/container-options {:h2c? true
                                         :h2? false
                                         ;:keystore "test/hp/keystore.jks"
                                         ;:key-password "password"
                                         ;:ssl-port 8443
-                                        :ssl? false
+                                        :ssl? false}})
                                         ;; Alternatively, You can specify you're own Jetty HTTPConfiguration
                                         ;; via the `:io.pedestal.http.jetty/http-configuration` container option.
                                         ;:io.pedestal.http.jetty/http-configuration (org.eclipse.jetty.server.HttpConfiguration.)
-                                        }})
+                                        

@@ -4,6 +4,8 @@
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
   
+  :plugins [[lein-environ "1.2.0"]]
+  
   :repositories [["my.datomic.com" {:url   "https://my.datomic.com/repo"
                                     :creds :gpg}]
                  ["central"   {:url "https://nexus.nsd.no/repository/nsd-maven-public"}]

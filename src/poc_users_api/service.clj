@@ -2,9 +2,12 @@
   (:require [clojure.pprint :refer [pprint]]
             [io.pedestal.http :as http]
             [io.pedestal.http.route :as route]
+            [io.pedestal.interceptor.error :as error-int]
             [io.pedestal.http.body-params :as body-params]
             [poc-users-api.oauth :as oauth]
-            [poc-users-api.pipeline :as pipeline]))
+            [poc-users-api.pipeline :as pipeline]
+            [environ.core :refer [env]]
+            [clojure.data.json :as json]))
 
 
 
@@ -20,7 +23,7 @@
         username (get-in request [:path-params :id])
         conn      (get-in request [:database :conn])
         db        (get-in request [:database :db])
-        op-result (pipeline/users-update conn db username payload)]
+        op-result (pipeline/user-update conn db username payload)]
 
     (if (:ok op-result)
 
@@ -52,7 +55,7 @@
   (let [username  (get-in request [:path-params :id])
         conn      (get-in request [:database :conn])
         db        (get-in request [:database :db])
-        op-result (pipeline/users-delete conn db username)]
+        op-result (pipeline/user-delete conn db username)]
 
     (if (:ok op-result)
 
@@ -83,7 +86,7 @@
         username  (:username payload)
         conn      (get-in request [:database :conn])
         db        (get-in request [:database :db])
-        op-result (pipeline/users-create conn db payload)]
+        op-result (pipeline/user-create conn db payload)]
     
     (if (:ok op-result)
 
@@ -108,8 +111,7 @@
   [request]
   (let [database (get-in request [:database :db])
         username (get-in request [:path-params :id])
-        user (pipeline/users-get-one database username)]
-    (pprint user)
+        user (pipeline/user-get-one database username)]
     (if user
       {:status 200
        :body   (user->user-http user)}
@@ -129,14 +131,31 @@
               :result users-http}}))
 
 
+(defn- json-response
+  [status body]
+  {:status status
+   :headers {"Content-Type" "application/json;charset=utf-8"}
+   :body (json/write-str body)})
+
+(def service-error-handler
+  (error-int/error-dispatch [ctx ex]
+
+                            [{:exception-type :com.fasterxml.jackson.core.JsonParseException}]
+                            (assoc ctx :response (json-response 400 {:error "Malformed JSON, yo. Fix that shit, pls."}))
+
+                            :else
+                            (assoc ctx :response (json-response 500 {:error "Mmm, some shit has happend and I'm really sorry :|"}))
+                            ))
+
 (def common-interceptors-public [
+                                 service-error-handler
                                  pipeline/database-interceptor
                                  (body-params/body-params)
-                                 http/json-body])
+                                 http/json-body
+                                 ])
 
 
-;; based on https://auth0.com/blog/secure-a-clojure-web-api-with-auth0/
-(def jwk-endpoint "https://dev-u5rmkur2.us.auth0.com/.well-known/jwks.json")
+(def jwk-endpoint (:jwk-endpoint env))
 
 (def common-interceptors-protected (conj common-interceptors-public (oauth/decode-jwt {:required?    true
                                                                                        :jwk-endpoint jwk-endpoint})))
@@ -157,11 +176,11 @@
 (def routes #{
               ["/debug" :get debug-interceptor :route-name :debug]
               ["/" :get home-interceptor :route-name :home]
-              ["/users" :post (conj common-interceptors-public `users-post) :route-name :users-post]
-              ["/users" :get (conj common-interceptors-public `users-get-list) :route-name :users-get-list]
-              ["/users/:id" :get (conj common-interceptors-public `users-get-one) :route-name :users-get-one]
-              ["/users/:id" :put (conj common-interceptors-public `users-put) :route-name :users-put]
-              ["/users/:id" :delete (conj common-interceptors-public `users-delete) :route-name :users-delete]
+              ["/users" :post (conj common-interceptors-protected `users-post) :route-name :users-post]
+              ["/users" :get (conj common-interceptors-protected `users-get-list) :route-name :users-get-list]
+              ["/users/:id" :get (conj common-interceptors-protected `users-get-one) :route-name :users-get-one]
+              ["/users/:id" :put (conj common-interceptors-protected `users-put) :route-name :users-put]
+              ["/users/:id" :delete (conj common-interceptors-protected `users-delete) :route-name :users-delete]
               })
               
 

@@ -1,6 +1,7 @@
 (ns poc-users-api.database
   (:require [clojure.pprint :refer [pprint]]
-            [datomic.api :as d]))
+            [datomic.api :as d]
+            [environ.core :refer [env]]))
 
 (def user-schema [;{:db/ident :user/id
                    ;:db/unique :db.unique/identity
@@ -34,7 +35,7 @@
                    :db/cardinality :db.cardinality/many
                    :db/doc "User tags"}])
 
-(def db-uri "datomic:dev://localhost:4334/users")
+(def db-uri (:database-uri env))
 
 (defn- db-admin-tx-schema []
   (d/create-database db-uri))
@@ -81,4 +82,9 @@
   "Updates an user to :deleted true"
   [conn username]
   (let [fut (d/transact conn [[:db/add [:user/username username] :user/deleted true]])]
+    fut))
+
+(defn user-retract-all-tags!
+  [conn username]
+  (let [fut (d/transact conn [[:db/retract [:user/username username] :user/tags]])]
     fut))

@@ -157,11 +157,11 @@
 (def routes #{
               ["/debug" :get debug-interceptor :route-name :debug]
               ["/" :get home-interceptor :route-name :home]
-              ["/users" :post (conj common-interceptors-protected `users-post) :route-name :users-post]
+              ["/users" :post (conj common-interceptors-public `users-post) :route-name :users-post]
               ["/users" :get (conj common-interceptors-public `users-get-list) :route-name :users-get-list]
               ["/users/:id" :get (conj common-interceptors-public `users-get-one) :route-name :users-get-one]
-              ["/users/:id" :put (conj common-interceptors-protected `users-put) :route-name :users-put]
-              ["/users/:id" :delete (conj common-interceptors-protected `users-delete) :route-name :users-delete]
+              ["/users/:id" :put (conj common-interceptors-public `users-put) :route-name :users-put]
+              ["/users/:id" :delete (conj common-interceptors-public `users-delete) :route-name :users-delete]
               })
               
 

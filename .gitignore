@@ -39,4 +39,4 @@ build/
 /.clj-kondo
 /.lsp
 /.calva
-.calva/output-window/output.calva-repl
+/.testes

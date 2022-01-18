@@ -28,7 +28,11 @@
 
                   ;; Oauth2.0
                  [environ/environ "1.2.0"]
-                 [no.nsd/clj-jwt "0.4.5"]]
+                 [no.nsd/clj-jwt "0.4.5"]
+                 
+                 
+                 [clj-http "3.12.3"]
+                 ]
   :min-lein-version "2.0.0"
   :resource-paths ["config", "resources"]
   ;; If you use HTTP/2 or ALPN, use the java-agent to pull in the correct alpn-boot dependency

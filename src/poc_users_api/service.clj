@@ -10,6 +10,11 @@
             [clojure.data.json :as json]))
 
 
+(def inspect-interceptor 
+  {:enter (fn [context]
+            (pprint context)
+            context)})
+
 
 (defn- user->user-http [user]
   ;; if you decide go HATEOAS, uncomment below :)
@@ -148,6 +153,7 @@
                             ))
 
 (def common-interceptors-public [
+                                 ;inspect-interceptor
                                  service-error-handler
                                  pipeline/database-interceptor
                                  (body-params/body-params)

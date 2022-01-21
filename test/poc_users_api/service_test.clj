@@ -15,14 +15,15 @@
 (println "-------------------------------")
 
 (def db-url (:database-uri env))
-(d/delete-database db-url)
 
 (let [deleted? (d/delete-database db-url)
       created? (d/create-database db-url)
       conn (d/connect db-url)
       db (d/db conn)
       schema-tx-future (d/transact conn db/user-schema)]
-  (println "setup finished"))
+  (println "deleted and created db for testing?" (and deleted? created?))
+  (println "transacted schema?" (not (nil? (:db-after @schema-tx-future))))
+  (println "setup finished – all good to go!"))
 
 
 (def service
@@ -45,8 +46,12 @@
   (apply str (take len (repeatedly #(char (+ (rand 26) 65))))))
 
 
-(deftest happy-scenarios
-  (let [username (rand-str (max 1 (rand-int 32)))]
+(defn rand-username []
+  (rand-str (max 1 (rand-int 32))))
+
+
+(deftest happy-scenarios-test
+  (let [username (rand-username)]
 
     (testing "User creation"
       (let [response (response-for service :post "/users"
@@ -96,3 +101,15 @@
 
 
 
+(deftest creation-validation-test
+  (let [username (rand-username)]
+    (testing "Invalid user creation – empty username"
+      (let [response (response-for service :post "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                             "Content-Type"  "application/json"}
+                                   :body (json/encode {:username ""
+                                                       :name     "X"
+                                                       :active   true
+                                                       :tags     ["a", "b"]}))]
+        (pprint response)
+        (is (= (:status response) 422))))))

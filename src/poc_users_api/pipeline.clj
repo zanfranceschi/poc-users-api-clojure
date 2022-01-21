@@ -2,8 +2,14 @@
   (:require [clojure.pprint :refer [pprint]]
             [poc-users-api.database :as db]
             [datomic.api :as d]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [clojure.string :refer [blank?]]))
 
+
+(defn string-not-blank? [v]
+  (not (blank? v)))
+
+(def StringNotBlank (s/pred string-not-blank? 'string-not-blank?))
 
 ;;================================================
 ;;                Conversions
@@ -50,7 +56,7 @@
 (def UserCreationSchema
   "Validation for POST /users request"
   {:name                  s/Str
-   :username              s/Str
+   :username              StringNotBlank
    :active                s/Bool
    (s/optional-key :tags) [s/Str]
    s/Any                  s/Any})

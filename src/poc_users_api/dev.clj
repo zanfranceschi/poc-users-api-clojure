@@ -4,6 +4,7 @@
             [poc-users-api.database :as db]
             [datomic.api :as d]
             [schema.core :as s]
+            [clojure.data.json :as json]
             [io.pedestal.http :as server]
             [clojure.string :refer [blank?]]))
 
@@ -25,3 +26,19 @@
 
 (pprint (s/check CustomSchema {:username ""}))
 
+
+
+(def xpto {:a 1 :b #(str "vc informou " %)})
+(def xpto {:a 1 :b "ss"})
+
+(-> (vals xpto)
+    println )
+
+
+(defn x [[key val]]
+  (println (str "chave " key " / value " val))
+  {key (str val)})
+
+(into {} (map x xpto))
+
+(json/write-str xpto)

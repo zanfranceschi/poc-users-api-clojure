@@ -23,7 +23,7 @@
       schema-tx-future (d/transact conn db/user-schema)]
   (println "deleted and created db for testing?" (and deleted? created?))
   (println "transacted schema?" (not (nil? (:db-after @schema-tx-future))))
-  (println "setup finished – all good to go!"))
+  (println "setup finished ─ all good to go!"))
 
 
 (def service
@@ -37,7 +37,9 @@
                                               :client_secret (:jwt-client-secret env)
                                               :audience (:jwt-audience env)
                                               :grant_type "client_credentials"})}))
+
 (def jwt-access-token-response-body (json/decode (:body jwt-access-token-response)))
+
 (def jwt-access-token (get jwt-access-token-response-body "access_token"))
 
 
@@ -54,62 +56,161 @@
   (let [username (rand-username)]
 
     (testing "User creation"
-      (let [response (response-for service :post "/users"
+      (let [response (response-for service
+                                   :post "/users"
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)
                                              "Content-Type"  "application/json"}
                                    :body (json/encode {:username username
                                                        :name     "temp"
                                                        :active   true
-                                                       :tags     ["a", "b"]}))]
-        ;(pprint response)
-        (is (= (:status response) 201))))
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))
+            headers (:headers response)]
+        
+        (is (= (:status response) 201))
+        (is (= (get headers "Location") (str "/users/" username)))
+        (is (= decoded-body {"message" "User created."}))))
 
     (testing "User update"
-      (let [response (response-for service :put (str "/users/" username)
+      (let [response (response-for service 
+                                   :put (str "/users/" username)
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)
                                              "Content-Type"  "application/json"}
                                    :body (json/encode {:username username
                                                        :name     "temp2"
                                                        :active   true
-                                                       :tags     ["c", "d"]}))]
+                                                       :tags     ["c", "d"]}))
+            decoded-body (json/decode (:body response))
+            headers (:headers response)]
         ;(pprint response)
         (is (= (:status response) 204))))
 
     (testing "Users consultation ─ one"
-      (let [response (response-for service :get (str "/users/" username)
-                                   :headers {"Authorization" (str "Bearer " jwt-access-token)})]
+      (let [response (response-for service
+                                   :get (str "/users/" username)
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)})
+            decoded-body (json/decode (:body response))
+            headers (:headers response)]
         ;(pprint response)
         (is (=
              (:status response)
              200))))
 
     (testing "Users consultation ─ list"
-      (let [response (response-for service :get "/users"
-                                   :headers {"Authorization" (str "Bearer " jwt-access-token)})]
+      (let [response (response-for service
+                                   :get "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)})
+            decoded-body (json/decode (:body response))
+            headers (:headers response)]
         ;(pprint response)
         (is (=
              (:status response)
              200))))
 
     (testing "Users exlusion"
-      (let [response (response-for service :delete (str "/users/" username)
-                                   :headers {"Authorization" (str "Bearer " jwt-access-token)})]
+      (let [response (response-for service 
+                                   :delete (str "/users/" username)
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)})
+            headers (:headers response)]
         ;(pprint response)
         (is (=
              (:status response)
              204))))))
 
 
-
 (deftest creation-validation-test
   (let [username (rand-username)]
-    (testing "Invalid user creation – empty username"
+    (testing "Invalid user creation - empty username"
       (let [response (response-for service :post "/users"
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)
                                              "Content-Type"  "application/json"}
                                    :body (json/encode {:username ""
                                                        :name     "X"
                                                        :active   true
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))]
+        ;(pprint response)
+        (is (= (:status response) 422))
+        (is (=
+             decoded-body
+             {"error" "Invalid format."
+              "details" {"username" "invalid-value"}}))
+        ))
+    
+    (testing "Invalid user creation - wrong username type"
+      (let [response (response-for service :post "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                             "Content-Type"  "application/json"}
+                                   :body (json/encode {:username 1
+                                                       :name     "X"
+                                                       :active   true
                                                        :tags     ["a", "b"]}))]
-        (pprint response)
-        (is (= (:status response) 422))))))
+        ;(pprint response)
+        (is (= (:status response) 422))))
+    
+    (testing "Invalid user creation - missing username"
+      (let [response (response-for service :post "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                             "Content-Type"  "application/json"}
+                                   :body (json/encode {:name     "X"
+                                                       :active   true
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))]
+        ;(pprint response)
+        (is (= (:status response) 422))))
+    
+    (testing "Invalid user creation - missing username"
+      (let [response (response-for service :post "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                             "Content-Type"  "application/json"}
+                                   :body (json/encode {:name     "X"
+                                                       :active   true
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))]
+        ;(pprint response)
+        (is (= (:status response) 422))))
+    
+    (testing "Invalid user creation - wrong name type"
+      (let [response (response-for service :post "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                             "Content-Type"  "application/json"}
+                                   :body (json/encode {:username username
+                                                       :name     1
+                                                       :active   true
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))]
+        ;(pprint response)
+        (is (= (:status response) 422))))
+    
+     (testing "Invalid user creation - missing active"
+       (let [response (response-for service :post "/users"
+                                    :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                              "Content-Type"  "application/json"}
+                                    :body (json/encode {:username username
+                                                        :name     "1"
+                                                        :tags     ["a", "b"]}))
+             decoded-body (json/decode (:body response))]
+         ;(pprint response)
+         ;(pprint (json/decode (:body response)))
+         (is (= (:status response) 422))
+         (is (= 
+              decoded-body
+              {"error" "Invalid format."
+               "details" {"active" "missing-required-key"}}))
+         ))
+    
+    (testing "Invalid user creation - wrong active type"
+      (let [response (response-for service :post "/users"
+                                   :headers {"Authorization" (str "Bearer " jwt-access-token)
+                                             "Content-Type"  "application/json"}
+                                   :body (json/encode {:username username
+                                                       :name     "string"
+                                                       :active   "true"
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))]
+        ;(pprint response)
+        (is (= (:status response) 422))))
+    
+    
+    
+    ))

@@ -3,6 +3,7 @@
             [poc-users-api.database :as db]
             [datomic.api :as d]
             [schema.core :as s]
+            [schema.utils :as su]
             [clojure.string :refer [blank?]]))
 
 
@@ -61,6 +62,18 @@
    (s/optional-key :tags) [s/Str]
    s/Any                  s/Any})
 
+
+(defn- validation-json-serializable [[key val]]
+  (if (instance? schema.utils.ValidationError val)
+    (do
+      ;{key 'empty-or-not-valid-string}
+      ;(pprint val)
+      {key 'invalid-value})
+    {key val}))
+
+(defn- validation-json-serializable-vals [result]
+  (into {} (map validation-json-serializable result)))
+
 (defn- validate-user-creation-payload
   [_ _ user]
   (if (nil? (s/check UserCreationSchema user))
@@ -70,7 +83,7 @@
      :ok        false
      :exception false
      :message   "Invalid format."
-     :details   (or (s/check UserCreationSchema user) "Please, check types.")}))
+     :details   (or (validation-json-serializable-vals (s/check UserCreationSchema user)) "Please, check types.")}))
 
 (defn- validate-user-uniqueness
   [_ database user]
@@ -101,6 +114,9 @@
        :exception true
        :message   "Error creating user."
        :details   (ex-message e)})))
+
+
+
 
 (defn user-create
   ([conn database user]

@@ -72,7 +72,7 @@
         (is (= decoded-body {"message" "User created."}))))
 
     (testing "User update"
-      (let [response (response-for service 
+      (let [response (response-for service
                                    :put (str "/users/" username)
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)
                                              "Content-Type"  "application/json"}
@@ -80,42 +80,46 @@
                                                        :name     "temp2"
                                                        :active   true
                                                        :tags     ["c", "d"]}))
-            decoded-body (json/decode (:body response))
-            headers (:headers response)]
-        ;(pprint response)
-        (is (= (:status response) 204))))
+            body (:body response)]
+        (is (= (:status response) 204))
+        (is (= body ""))))
+        
 
     (testing "Users consultation ─ one"
       (let [response (response-for service
                                    :get (str "/users/" username)
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)})
-            decoded-body (json/decode (:body response))
-            headers (:headers response)]
-        ;(pprint response)
-        (is (=
-             (:status response)
-             200))))
+            decoded-body (json/decode (:body response))]
+        (is (= (:status response) 200))
+        (is (= decoded-body {"username" username
+                             "name" "temp2"
+                             "active" true
+                             "tags" ["c" "d"]}))))
+        
+        
 
     (testing "Users consultation ─ list"
       (let [response (response-for service
                                    :get "/users"
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)})
             decoded-body (json/decode (:body response))
-            headers (:headers response)]
-        ;(pprint response)
-        (is (=
-             (:status response)
-             200))))
+            decoded-body-users (get decoded-body "result")]
 
+        (is (= (:status response) 200))
+        (is (contains? decoded-body "total"))
+        (is (contains? decoded-body "result"))
+        (is (= (first decoded-body-users) {"username" username
+                                           "name" "temp2"
+                                           "active" true
+                                           "tags" ["c" "d"]}))))
+    
     (testing "Users exlusion"
-      (let [response (response-for service 
+      (let [response (response-for service
                                    :delete (str "/users/" username)
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)})
-            headers (:headers response)]
-        ;(pprint response)
-        (is (=
-             (:status response)
-             204))))))
+            body (:body response)]
+        (is (= (:status response) 204))
+        (is (= body ""))))))
 
 
 (deftest creation-validation-test
@@ -129,13 +133,11 @@
                                                        :active   true
                                                        :tags     ["a", "b"]}))
             decoded-body (json/decode (:body response))]
-        ;(pprint response)
         (is (= (:status response) 422))
-        (is (=
-             decoded-body
-             {"error" "Invalid format."
-              "details" {"username" "invalid-value"}}))
-        ))
+        (is (= decoded-body
+               {"error" "Invalid format."
+                "details" {"username" "invalid-value"}}))))
+        
     
     (testing "Invalid user creation - wrong username type"
       (let [response (response-for service :post "/users"
@@ -144,9 +146,14 @@
                                    :body (json/encode {:username 1
                                                        :name     "X"
                                                        :active   true
-                                                       :tags     ["a", "b"]}))]
-        ;(pprint response)
-        (is (= (:status response) 422))))
+                                                       :tags     ["a", "b"]}))
+            decoded-body (json/decode (:body response))]
+        (is (= (:status response) 422))
+        (is (= decoded-body
+               {"error" "Invalid format."
+                "details" {"username" "invalid-value"}})))
+        
+      )
     
     (testing "Invalid user creation - missing username"
       (let [response (response-for service :post "/users"
@@ -156,19 +163,23 @@
                                                        :active   true
                                                        :tags     ["a", "b"]}))
             decoded-body (json/decode (:body response))]
-        ;(pprint response)
-        (is (= (:status response) 422))))
+        (is (= (:status response) 422))
+        (is (= decoded-body
+               {"error" "Invalid format."
+                "details" {"username" "missing-required-key"}}))))
     
-    (testing "Invalid user creation - missing username"
+    (testing "Invalid user creation - missing username and name"
       (let [response (response-for service :post "/users"
                                    :headers {"Authorization" (str "Bearer " jwt-access-token)
                                              "Content-Type"  "application/json"}
-                                   :body (json/encode {:name     "X"
-                                                       :active   true
+                                   :body (json/encode {:active   true
                                                        :tags     ["a", "b"]}))
             decoded-body (json/decode (:body response))]
-        ;(pprint response)
-        (is (= (:status response) 422))))
+        (is (= (:status response) 422))
+        (is (= decoded-body
+               {"error" "Invalid format."
+                "details" {"username" "missing-required-key"
+                           "name" "missing-required-key"}}))))
     
     (testing "Invalid user creation - wrong name type"
       (let [response (response-for service :post "/users"
@@ -179,8 +190,10 @@
                                                        :active   true
                                                        :tags     ["a", "b"]}))
             decoded-body (json/decode (:body response))]
-        ;(pprint response)
-        (is (= (:status response) 422))))
+        (is (= (:status response) 422))
+        (is (= decoded-body
+               {"error" "Invalid format."
+                "details" {"name" "invalid-value"}})))
     
      (testing "Invalid user creation - missing active"
        (let [response (response-for service :post "/users"
@@ -190,14 +203,12 @@
                                                         :name     "1"
                                                         :tags     ["a", "b"]}))
              decoded-body (json/decode (:body response))]
-         ;(pprint response)
-         ;(pprint (json/decode (:body response)))
+         
          (is (= (:status response) 422))
-         (is (= 
-              decoded-body
-              {"error" "Invalid format."
-               "details" {"active" "missing-required-key"}}))
-         ))
+         (is (= decoded-body
+                {"error" "Invalid format."
+                 "details" {"active" "missing-required-key"}})))))
+         
     
     (testing "Invalid user creation - wrong active type"
       (let [response (response-for service :post "/users"
@@ -208,9 +219,11 @@
                                                        :active   "true"
                                                        :tags     ["a", "b"]}))
             decoded-body (json/decode (:body response))]
-        ;(pprint response)
-        (is (= (:status response) 422))))
+        (is (= (:status response) 422))
+        (is (= decoded-body
+               {"error" "Invalid format."
+                "details" {"active" "invalid-value"}}))))))
     
     
     
-    ))
+    

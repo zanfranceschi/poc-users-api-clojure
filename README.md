@@ -24,7 +24,7 @@ curl -v -XPOST \
 
 ## Testing
 
-I've made a simple bash script that run unit tests (not needed at all):
+I've made a simple bash script that runs unit tests (not needed at all):
 
 ```
 ./run-tests.sh

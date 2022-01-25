@@ -11,7 +11,7 @@ https://www.datomic.com/get-datomic.html ─ Started version will do.
 
 ### Authorization Server/Service
 
-I've used ([OAuth0](https://manage.auth0.com/)) and it's cool :)
+I've used [OAuth0](https://manage.auth0.com/) and it's cool :)
 
 Get token example request with OAuth0:
 
